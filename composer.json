@@ -15,15 +15,15 @@
     "autoload": {
         "psr-4": {
             "Illuminate\\Notifications\\": "src/",
-			"Threema\\MsgApi\\": "vendor/threema/msgapi-sdk/src/MsgApi/"
+			"Threema\\MsgApi\\": "../../threema/msgapi-sdk/src/MsgApi/"
         },
 		"files": [
-			"vendor/threema/msgapi-sdk/src/Salt/Curve25519/Curve25519.php",
-			"vendor/threema/msgapi-sdk/src/Salt/FieldElement.php",
-			"vendor/threema/msgapi-sdk/src/Salt/Salt.php",
-			"vendor/threema/msgapi-sdk/src/Salt/SaltException.php",
-			"vendor/threema/msgapi-sdk/src/Salt/Poly1305/Poly1305.php",
-			"vendor/threema/msgapi-sdk/src/Salt/Salsa20/Salsa20.php"
+			"../../threema/msgapi-sdk/src/Salt/Curve25519/Curve25519.php",
+			"../../threema/msgapi-sdk/src/Salt/FieldElement.php",
+			"../../threema/msgapi-sdk/src/Salt/Salt.php",
+			"../../threema/msgapi-sdk/src/Salt/SaltException.php",
+			"../../threema/msgapi-sdk/src/Salt/Poly1305/Poly1305.php",
+			"../../threema/msgapi-sdk/src/Salt/Salsa20/Salsa20.php"
 		]
     },
     "autoload-dev": {
