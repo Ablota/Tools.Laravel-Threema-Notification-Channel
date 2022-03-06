@@ -2,8 +2,7 @@ stages:
   - test
   - build
 
-phpunit:
-  image: composer:latest
+.phpunit-template: &phpunit-template
   stage: test
   cache:
     key: ${CI_COMMIT_REF_SLUG}
@@ -19,8 +18,17 @@ phpunit:
       cobertura: coverage.xml
     expire_in: 1 week
   script:
+    - sed -i 's#../../threema/#vendor/threema/#g' composer.json
     - composer install
     - ./vendor/phpunit/phpunit/phpunit --configuration phpunit.xml --coverage-text --colors=never --log-junit report.xml --coverage-cobertura coverage.xml
+
+phpunit:8.0:
+  image: laravelsail/php80-composer:latest
+  <<: *phpunit-template
+
+phpunit:8.1:
+  image: laravelsail/php81-composer:latest
+  <<: *phpunit-template
 
 publish:
   image: curlimages/curl:latest
