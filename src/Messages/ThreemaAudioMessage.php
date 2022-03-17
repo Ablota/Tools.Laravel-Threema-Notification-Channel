@@ -53,7 +53,7 @@ class ThreemaAudioMessage extends ThreemaMessage
 			$ffmpeg = FFProbe::create();
 			$audio = $ffmpeg->format($this->path);
 
-			return $audio->get('duration');
+			return (int)$audio->get('duration');
 		} catch(Exception $exception) {
 			throw new ThreemaChannelException('The underlying FFMpeg has thrown an exception.', 0, $exception);
 		}

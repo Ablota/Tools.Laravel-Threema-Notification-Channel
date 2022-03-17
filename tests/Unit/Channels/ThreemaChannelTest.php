@@ -620,7 +620,7 @@ class ThreemaChannelUnsupportedNotifiableTest extends TestCase
 
 class ThreemaChannelTextMessageNotificationTest extends Notification
 {
-	public function toThreema(mixed $notifiable): ThreemaMessage
+	public function toThreema(mixed $notifiable): ThreemaTextMessage
 	{
 		$message = new ThreemaTextMessage('Hello World');
 		$message->setText('Hello World!');
@@ -749,7 +749,7 @@ class ThreemaChannelTextMessageCustomNotificationTest extends Notification
 		$this->channel = $channel;
 	}
 
-	public function toThreema(mixed $notifiable): ThreemaMessage
+	public function toThreema(mixed $notifiable): ThreemaTextMessage
 	{
 		$message = new ThreemaTextMessage('Hello World!', null);
 		$message->setChannel($this->channel);
