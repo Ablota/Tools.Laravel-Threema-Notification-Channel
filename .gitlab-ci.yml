@@ -18,6 +18,7 @@ stages:
       cobertura: coverage.xml
     expire_in: 1 week
   script:
+    - apt-get update && apt-get install -y ffmpeg
     - sed -i 's#../../threema/#vendor/threema/#g' composer.json
     - composer install
     - ./vendor/phpunit/phpunit/phpunit --configuration phpunit.xml --coverage-text --colors=never --log-junit report.xml --coverage-cobertura coverage.xml
