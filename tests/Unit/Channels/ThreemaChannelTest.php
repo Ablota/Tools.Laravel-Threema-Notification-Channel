@@ -4,15 +4,23 @@ namespace Illuminate\Notifications\Tests\Unit\Channels;
 
 use Illuminate\Notifications\Channels\ThreemaChannel;
 use Illuminate\Notifications\Exceptions\ThreemaChannelException;
+use Illuminate\Notifications\Exceptions\ThreemaChannelResultException;
+use Illuminate\Notifications\Messages\ThreemaAudioMessage;
+use Illuminate\Notifications\Messages\ThreemaFileMessage;
+use Illuminate\Notifications\Messages\ThreemaImageMessage;
+use Illuminate\Notifications\Messages\ThreemaLocationMessage;
 use Illuminate\Notifications\Messages\ThreemaMessage;
 use Illuminate\Notifications\Messages\ThreemaTextMessage;
+use Illuminate\Notifications\Messages\ThreemaVideoMessage;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Notifications\Notification;
 use PHPUnit\Framework\TestCase;
+use Threema\MsgApi\Commands\Results\CapabilityResult;
 use Threema\MsgApi\Commands\Results\FetchPublicKeyResult;
 use Threema\MsgApi\Commands\Results\LookupIdResult;
 use Threema\MsgApi\Commands\Results\SendE2EResult;
 use Threema\MsgApi\Commands\Results\SendSimpleResult;
+use Threema\MsgApi\Commands\Results\UploadFileResult;
 use Threema\MsgApi\Connection;
 use Threema\MsgApi\Core\Exception;
 use Threema\MsgApi\Receiver;
@@ -43,6 +51,7 @@ class ThreemaChannelTest extends TestCase
 
 	/**
 	 * @throws ThreemaChannelException
+	 * @throws ThreemaChannelResultException
 	 */
 	public function testTextMessageSimpleId()
 	{
@@ -60,6 +69,7 @@ class ThreemaChannelTest extends TestCase
 
 	/**
 	 * @throws ThreemaChannelException
+	 * @throws ThreemaChannelResultException
 	 */
 	public function testTextMessageSimpleEmail()
 	{
@@ -77,6 +87,7 @@ class ThreemaChannelTest extends TestCase
 
 	/**
 	 * @throws ThreemaChannelException
+	 * @throws ThreemaChannelResultException
 	 */
 	public function testTextMessageSimplePhone()
 	{
@@ -94,6 +105,7 @@ class ThreemaChannelTest extends TestCase
 
 	/**
 	 * @throws ThreemaChannelException
+	 * @throws ThreemaChannelResultException
 	 */
 	public function testTextMessageSimpleCustom()
 	{
@@ -118,6 +130,7 @@ class ThreemaChannelTest extends TestCase
 
 	/**
 	 * @throws ThreemaChannelException
+	 * @throws ThreemaChannelResultException
 	 */
 	public function testTextMessageE2EId()
 	{
@@ -139,6 +152,7 @@ class ThreemaChannelTest extends TestCase
 
 	/**
 	 * @throws ThreemaChannelException
+	 * @throws ThreemaChannelResultException
 	 */
 	public function testTextMessageE2EEmail()
 	{
@@ -164,6 +178,7 @@ class ThreemaChannelTest extends TestCase
 
 	/**
 	 * @throws ThreemaChannelException
+	 * @throws ThreemaChannelResultException
 	 */
 	public function testTextMessageE2EPhone()
 	{
@@ -187,6 +202,9 @@ class ThreemaChannelTest extends TestCase
 		$this->assertTrue($channel->send($notifiable, $notification)->isSuccess());
 	}
 
+	/**
+	 * @throws ThreemaChannelResultException
+	 */
 	public function testTextMessageE2EInvalidNotifiable()
 	{
 		$notification = new ThreemaChannelTextMessageNotificationTest();
@@ -200,6 +218,7 @@ class ThreemaChannelTest extends TestCase
 
 	/**
 	 * @throws ThreemaChannelException
+	 * @throws ThreemaChannelResultException
 	 */
 	public function testTextMessageE2EInvalidLookup()
 	{
@@ -212,12 +231,16 @@ class ThreemaChannelTest extends TestCase
 			->method('keyLookupByEmail')
 			->willReturn($lookupResult);
 
+		$this->expectException(ThreemaChannelResultException::class);
+		$this->expectExceptionCode($lookupResult->getErrorCode());
+
 		$channel = new ThreemaChannel($this->connectionMock, self::PRIVATE_KEY);
-		$sendResult = $channel->send($notifiable, $notification);
-		$this->assertFalse($sendResult->isSuccess());
-		$this->assertEquals($lookupResult->getErrorCode(), $sendResult->getErrorCode());
+		$channel->send($notifiable, $notification);
 	}
 
+	/**
+	 * @throws ThreemaChannelResultException
+	 */
 	public function testTextMessageE2EUnsupportedLookup()
 	{
 		$notification = new ThreemaChannelTextMessageNotificationTest();
@@ -231,6 +254,7 @@ class ThreemaChannelTest extends TestCase
 
 	/**
 	 * @throws ThreemaChannelException
+	 * @throws ThreemaChannelResultException
 	 */
 	public function testTextMessageE2ECustom()
 	{
@@ -257,6 +281,39 @@ class ThreemaChannelTest extends TestCase
 		$channel->send($notifiable, $notification);
 	}
 
+	/**
+	 * @throws ThreemaChannelException
+	 * @throws ThreemaChannelResultException
+	 */
+	public function testTextMessageE2EResult()
+	{
+		$notification = new ThreemaChannelTextMessageNotificationTest();
+		$notifiable = new ThreemaChannelIdNotifiableTest();
+
+		$this->connectionMock
+			->expects($this->once())
+			->method('sendE2E')
+			->willReturn(new SendE2EResult(400, null));
+		$this->connectionMock
+			->expects($this->once())
+			->method('fetchPublicKey')
+			->willReturn(new FetchPublicKeyResult(200, self::PUBLIC_KEY));
+
+		$channel = new ThreemaChannel($this->connectionMock, self::PRIVATE_KEY);
+
+		try {
+			$channel->send($notifiable, $notification);
+			$this->fail();
+		} catch(ThreemaChannelResultException $exception) {
+			$this->assertEquals(400, $exception->getCode());
+			$this->assertEquals(400, $exception->getResult()->getErrorCode());
+			$this->assertFalse($exception->getResult()->isSuccess());
+		}
+	}
+
+	/**
+	 * @throws ThreemaChannelResultException
+	 */
 	public function testTextMessageE2EMsgApiException()
 	{
 		$notification = new ThreemaChannelTextMessageNotificationTest();
@@ -277,6 +334,202 @@ class ThreemaChannelTest extends TestCase
 		$channel->send($notifiable, $notification)->isSuccess();
 	}
 
+	/**
+	 * @throws ThreemaChannelException
+	 * @throws ThreemaChannelResultException
+	 */
+	public function testImageMessageE2E()
+	{
+		$notification = new ThreemaChannelImageMessageNotificationTest();
+		$notifiable = new ThreemaChannelIdNotifiableTest();
+
+		$this->connectionMock
+			->expects($this->once())
+			->method('sendE2E')
+			->willReturn(new SendE2EResult(200, null));
+		$this->connectionMock
+			->expects($this->once())
+			->method('fetchPublicKey')
+			->willReturn(new FetchPublicKeyResult(200, self::PUBLIC_KEY));
+		$this->connectionMock
+			->expects($this->once())
+			->method('keyCapability')
+			->willReturn(new CapabilityResult(200, 'image'));
+		$this->connectionMock
+			->expects($this->once())
+			->method('uploadFile')
+			->willReturn(new UploadFileResult(200, null));
+
+		$channel = new ThreemaChannel($this->connectionMock, self::PRIVATE_KEY);
+		$this->assertTrue($channel->send($notifiable, $notification)->isSuccess());
+	}
+
+	/**
+	 * @throws ThreemaChannelException
+	 * @throws ThreemaChannelResultException
+	 */
+	public function testInvalidImageMessageE2E()
+	{
+		$notification = new ThreemaChannelInvalidImageMessageNotificationTest();
+		$notifiable = new ThreemaChannelIdNotifiableTest();
+
+		$this->expectException(ThreemaChannelException::class);
+
+		$channel = new ThreemaChannel($this->connectionMock, self::PRIVATE_KEY);
+		$channel->send($notifiable, $notification);
+	}
+
+	/**
+	 * @throws ThreemaChannelException
+	 * @throws ThreemaChannelResultException
+	 */
+	public function testLocationMessageE2E()
+	{
+		$notification = new ThreemaChannelLocationMessageNotificationTest();
+		$notifiable = new ThreemaChannelIdNotifiableTest();
+
+		$this->connectionMock
+			->expects($this->once())
+			->method('sendE2E')
+			->willReturn(new SendE2EResult(200, null));
+		$this->connectionMock
+			->expects($this->once())
+			->method('fetchPublicKey')
+			->willReturn(new FetchPublicKeyResult(200, self::PUBLIC_KEY));
+
+		$channel = new ThreemaChannel($this->connectionMock, self::PRIVATE_KEY);
+		$this->assertTrue($channel->send($notifiable, $notification)->isSuccess());
+	}
+
+	/**
+	 * @throws ThreemaChannelException
+	 * @throws ThreemaChannelResultException
+	 */
+	public function testAudioMessageE2E()
+	{
+		$notification = new ThreemaChannelAudioMessageNotificationTest();
+		$notifiable = new ThreemaChannelIdNotifiableTest();
+
+		$this->connectionMock
+			->expects($this->once())
+			->method('sendE2E')
+			->willReturn(new SendE2EResult(200, null));
+		$this->connectionMock
+			->expects($this->once())
+			->method('fetchPublicKey')
+			->willReturn(new FetchPublicKeyResult(200, self::PUBLIC_KEY));
+		$this->connectionMock
+			->expects($this->once())
+			->method('keyCapability')
+			->willReturn(new CapabilityResult(200, 'audio'));
+		$this->connectionMock
+			->expects($this->once())
+			->method('uploadFile')
+			->willReturn(new UploadFileResult(200, null));
+
+		$audioMessage = $notification->toThreema($notifiable);
+		$this->assertEquals(1, $audioMessage->getDuration());
+
+		$channel = new ThreemaChannel($this->connectionMock, self::PRIVATE_KEY);
+		$this->assertTrue($channel->send($notifiable, $notification)->isSuccess());
+	}
+
+	/**
+	 * @throws ThreemaChannelException
+	 * @throws ThreemaChannelResultException
+	 */
+	public function testInvalidAudioMessageE2E()
+	{
+		$notification = new ThreemaChannelInvalidAudioMessageNotificationTest();
+		$notifiable = new ThreemaChannelIdNotifiableTest();
+
+		$this->expectException(ThreemaChannelException::class);
+
+		$channel = new ThreemaChannel($this->connectionMock, self::PRIVATE_KEY);
+		$channel->send($notifiable, $notification);
+	}
+
+	/**
+	 * @throws ThreemaChannelException
+	 * @throws ThreemaChannelResultException
+	 */
+	public function testVideoMessageE2E()
+	{
+		$notification = new ThreemaChannelVideoMessageNotificationTest();
+		$notifiable = new ThreemaChannelIdNotifiableTest();
+
+		$this->connectionMock
+			->expects($this->once())
+			->method('sendE2E')
+			->willReturn(new SendE2EResult(200, null));
+		$this->connectionMock
+			->expects($this->once())
+			->method('fetchPublicKey')
+			->willReturn(new FetchPublicKeyResult(200, self::PUBLIC_KEY));
+		$this->connectionMock
+			->expects($this->once())
+			->method('keyCapability')
+			->willReturn(new CapabilityResult(200, 'video'));
+		$this->connectionMock
+			->expects($this->exactly(2))
+			->method('uploadFile')
+			->willReturn(new UploadFileResult(200, null));
+
+		$videoMessage = $notification->toThreema($notifiable);
+		$this->assertEquals(10, $videoMessage->getDuration());
+
+		$channel = new ThreemaChannel($this->connectionMock, self::PRIVATE_KEY);
+		$this->assertTrue($channel->send($notifiable, $notification)->isSuccess());
+	}
+
+	/**
+	 * @throws ThreemaChannelException
+	 * @throws ThreemaChannelResultException
+	 */
+	public function testInvalidVideoMessageE2E()
+	{
+		$notification = new ThreemaChannelInvalidVideoMessageNotificationTest();
+		$notifiable = new ThreemaChannelIdNotifiableTest();
+
+		$this->expectException(ThreemaChannelException::class);
+
+		$channel = new ThreemaChannel($this->connectionMock, self::PRIVATE_KEY);
+		$channel->send($notifiable, $notification);
+	}
+
+	/**
+	 * @throws ThreemaChannelException
+	 * @throws ThreemaChannelResultException
+	 */
+	public function testFileMessageE2E()
+	{
+		$notification = new ThreemaChannelFileMessageNotificationTest();
+		$notifiable = new ThreemaChannelIdNotifiableTest();
+
+		$this->connectionMock
+			->expects($this->once())
+			->method('sendE2E')
+			->willReturn(new SendE2EResult(200, null));
+		$this->connectionMock
+			->expects($this->once())
+			->method('fetchPublicKey')
+			->willReturn(new FetchPublicKeyResult(200, self::PUBLIC_KEY));
+		$this->connectionMock
+			->expects($this->once())
+			->method('keyCapability')
+			->willReturn(new CapabilityResult(200, 'file'));
+		$this->connectionMock
+			->expects($this->exactly(2))
+			->method('uploadFile')
+			->willReturn(new UploadFileResult(200, null));
+
+		$channel = new ThreemaChannel($this->connectionMock, self::PRIVATE_KEY);
+		$this->assertTrue($channel->send($notifiable, $notification)->isSuccess());
+	}
+
+	/**
+	 * @throws ThreemaChannelResultException
+	 */
 	public function testUnsupportedMessageSimple()
 	{
 		$notification = new ThreemaChannelUnsupportedMessageNotificationTest();
@@ -288,6 +541,9 @@ class ThreemaChannelTest extends TestCase
 		$channel->send($notifiable, $notification);
 	}
 
+	/**
+	 * @throws ThreemaChannelResultException
+	 */
 	public function testUnsupportedMessageE2E()
 	{
 		$notification = new ThreemaChannelUnsupportedMessageNotificationTest();
@@ -366,7 +622,113 @@ class ThreemaChannelTextMessageNotificationTest extends Notification
 {
 	public function toThreema(mixed $notifiable): ThreemaMessage
 	{
-		return new ThreemaTextMessage('Hello World!');
+		$message = new ThreemaTextMessage('Hello World');
+		$message->setText('Hello World!');
+
+		return $message;
+	}
+}
+
+class ThreemaChannelImageMessageNotificationTest extends Notification
+{
+	public function toThreema(mixed $notifiable): ThreemaImageMessage
+	{
+		return new ThreemaImageMessage(__DIR__ . '/../../assets/image.jpg');
+	}
+}
+
+class ThreemaChannelInvalidImageMessageNotificationTest extends Notification
+{
+	public function toThreema(mixed $notifiable): ThreemaImageMessage
+	{
+		$message = new ThreemaImageMessage(__DIR__ . '/../../assets/image.jpg');
+		$message->setPath(__DIR__ . '/../../assets/image.mp3');
+
+		return $message;
+	}
+}
+
+class ThreemaChannelLocationMessageNotificationTest extends Notification
+{
+	public function toThreema(mixed $notifiable): ThreemaLocationMessage
+	{
+		$message = new ThreemaLocationMessage(1.000000, 1.000000);
+		$message->setLatitude(2.000000);
+		$message->setLongitude(2.000000);
+		$message->setAccuracy(1.0);
+		$message->setPoiName('Hello World');
+		$message->setPoiAddress('Hello 1, World');
+
+		return $message;
+	}
+}
+
+class ThreemaChannelAudioMessageNotificationTest extends Notification
+{
+	/**
+	 * @throws ThreemaChannelException
+	 */
+	public function toThreema(mixed $notifiable): ThreemaAudioMessage
+	{
+		$message = new ThreemaAudioMessage(__DIR__ . '/../../assets/audio.mp3');
+		$message->setPath(__DIR__ . '/../../assets/audio.mp3');
+
+		return $message;
+	}
+}
+
+class ThreemaChannelInvalidAudioMessageNotificationTest extends Notification
+{
+	/**
+	 * @throws ThreemaChannelException
+	 */
+	public function toThreema(mixed $notifiable): ThreemaAudioMessage
+	{
+		$message = new ThreemaAudioMessage(__DIR__ . '/../../assets/audio.mp3');
+		$message->setPath(__DIR__ . '/../../assets/audio.mp4');
+
+		return $message;
+	}
+}
+
+class ThreemaChannelVideoMessageNotificationTest extends Notification
+{
+	/**
+	 * @throws ThreemaChannelException
+	 */
+	public function toThreema(mixed $notifiable): ThreemaVideoMessage
+	{
+		return new ThreemaVideoMessage(__DIR__ . '/../../assets/video.mp4');
+	}
+}
+
+class ThreemaChannelInvalidVideoMessageNotificationTest extends Notification
+{
+	/**
+	 * @throws ThreemaChannelException
+	 */
+	public function toThreema(mixed $notifiable): ThreemaVideoMessage
+	{
+		$message = new ThreemaVideoMessage(__DIR__ . '/../../assets/video.mp4');
+		$message->setThumbnailPath(__DIR__ . '/../../assets/video.jpg');
+		$message->setPath(__DIR__ . '/../../assets/video.mp3');
+
+		return $message;
+	}
+}
+
+class ThreemaChannelFileMessageNotificationTest extends Notification
+{
+	public function toThreema(mixed $notifiable): ThreemaFileMessage
+	{
+		$message = new ThreemaFileMessage(__DIR__ . '/../../assets/video.mp4');
+		$message->setPath(__DIR__ . '/../../assets/audio.mp3');
+		$message->setName('HelloWorld.mp3');
+		$message->setCaption('Hello World!');
+		$message->setType(1);
+		$message->setThumbnailPath(__DIR__ . '/../../assets/image.jpg');
+
+		return $message;
 	}
 }
 
@@ -389,7 +751,10 @@ class ThreemaChannelTextMessageCustomNotificationTest extends Notification
 
 	public function toThreema(mixed $notifiable): ThreemaMessage
 	{
-		return new ThreemaTextMessage('Hello World!', $this->channel);
+		$message = new ThreemaTextMessage('Hello World!', null);
+		$message->setChannel($this->channel);
+
+		return $message;
 	}
 }
 

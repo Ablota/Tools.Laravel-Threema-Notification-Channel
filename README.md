@@ -69,7 +69,7 @@ public function toThreema(mixed $notifiable): ThreemaMessage
 }
 ```
 
-_Right now only text messages are supported. More message types are coming soon._
+_Right now only 1:1 chat messages (text, image, location, audio, video, file) are supported. Group message types are coming soon._
 
 ## Routing Notifications
 
@@ -85,3 +85,27 @@ public function routeNotificationForThreema(mixed $notification): Receiver
 ```
 
 By using `Receiver::TYPE_EMAIL` or `Receiver::TYPE_PHONE` you can make use of an automatic ID lookup.
+
+## Exceptions
+
+The package only throws the following exceptions:
+
+### ThreemaChannelException
+
+Is thrown in case of fatal errors. For example, if certain types are not supported or the configuration is incorrect.
+
+### ThreemaChannelResultException
+
+Since Laravel does not return a result when sending notifications, this exception is thrown instead.
+For example, sending a message to an unknown Threema ID would lead into this exception.
+It should be caught and the result it contains should be processed:
+
+```php
+use Illuminate\Notifications\Exceptions\ThreemaChannelResultException;
+
+try {
+	$notifiable->notify(new TwoFactorVerificationCode());
+} catch(ThreemaChannelResultException $exception) {
+	$exception->getResult();
+}
+```

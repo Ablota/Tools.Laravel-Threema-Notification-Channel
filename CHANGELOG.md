@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.1.0 - 2022-03-17
+
+### Added
+
+- Support image, location, audio, video and file messages
+- Throw exception on unsuccessful result
+
+### Changed
+
+- Variable assignment in messages: Change `$message->text` to `$message->setText()`
+
 ## v1.0.1 - 2022-03-05
 
 ### Fixed
